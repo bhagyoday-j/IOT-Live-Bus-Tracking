@@ -14,6 +14,7 @@ router.get('/', routeController.getAllRoutes);
 router.get('/:id', routeController.getRouteById);
 
 // Protected routes
+router.post('/plan', authenticate, routeController.planRoute);
 router.post('/', authenticate, authorize('admin', 'depot_manager'), createRouteValidator, validate, auditLog('create', 'route'), routeController.createRoute);
 router.put('/:id', authenticate, authorize('admin', 'depot_manager'), updateRouteValidator, validate, auditLog('update', 'route'), routeController.updateRoute);
 router.delete('/:id', authenticate, authorize('admin'), auditLog('delete', 'route'), routeController.deleteRoute);

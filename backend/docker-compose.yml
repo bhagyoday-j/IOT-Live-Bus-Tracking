@@ -1,0 +1,159 @@
+version: '3.8'
+
+services:
+  # ── Backend API Server ──────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smarttransit-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - HOST=0.0.0.0
+      - MONGODB_URI=mongodb://mongodb:27017/smarttransit
+      - REDIS_URL=redis://redis:6379
+      - MQTT_BROKER_URL=mqtt://emqx:1883
+      - MQTT_USERNAME=smarttransit
+      - MQTT_PASSWORD=smarttransit_secret
+      - JWT_SECRET=${JWT_SECRET:-change-this-jwt-secret}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-change-this-refresh-secret}
+      - CORS_ORIGIN=*
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_started
+      emqx:
+        condition: service_healthy
+    volumes:
+      - backend-logs:/app/logs
+      - ./src:/app/src:ro
+    networks:
+      - smarttransit-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  # ── Redis (Cache + Socket.IO Adapter) ───────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: smarttransit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - smarttransit-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── EMQX (MQTT Broker) ──────────────────────────────────────────
+  emqx:
+    image: emqx:5.7
+    container_name: smarttransit-emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"    # MQTT
+      - "8083:8083"    # MQTT/WebSocket
+      - "8084:8084"    # MQTT/SSL
+      - "18083:18083"  # Dashboard
+    environment:
+      - EMQX_NODE_NAME=emqx@smarttransit-emqx
+      - EMQX_CLUSTER__DISCOVERY_STRATEGY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=emqx@smarttransit-emqx
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=${EMQX_DASHBOARD_PASSWORD:-public}
+      # Authentication
+      - EMQX_AUTHENTICATION__1__ENABLE=true
+      - EMQX_AUTHENTICATION__1__MECHANISM=password_based
+      - EMQX_AUTHENTICATION__1__BACKEND=built_in_database
+      - EMQX_AUTHENTICATION__1__USER_ID_TYPE=username
+      - EMQX_AUTHENTICATION__1__PASSWORD_HASH_ALGORITHM=sha256
+      # Authorization
+      - EMQX_AUTHORIZATION__ENABLE=true
+      - EMQX_AUTHORIZATION__SOURCES_1__TYPE=built_in_database
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    networks:
+      - smarttransit-net
+    healthcheck:
+      test: ["CMD", "emqx_ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── MongoDB (Optional - Use Atlas for Production) ───────────────
+  mongodb:
+    image: mongo:7
+    container_name: smarttransit-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: smarttransit
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - smarttransit-net
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - local
+      - dev
+
+  # ── EMQX Setup (Create MQTT credentials) ────────────────────────
+  emqx-setup:
+    image: curlimages/curl:8.6
+    container_name: smarttransit-emqx-setup
+    depends_on:
+      emqx:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for EMQX API..."
+        sleep 10
+        # Create MQTT user for backend
+        curl -s -o /dev/null -w "%{http_code}" \
+          -X POST "http://emqx:18083/api/v5/authentication/password_based:built_in_database/users" \
+          -H "Content-Type: application/json" \
+          -u admin:${EMQX_DASHBOARD_PASSWORD:-public} \
+          -d '{"user_id":"smarttransit","password":"smarttransit_secret"}'
+        echo "EMQX setup complete"
+    networks:
+      - smarttransit-net
+    profiles:
+      - setup
+
+volumes:
+  redis-data:
+    driver: local
+  emqx-data:
+    driver: local
+  emqx-log:
+    driver: local
+  mongodb-data:
+    driver: local
+  backend-logs:
+    driver: local
+
+networks:
+  smarttransit-net:
+    driver: bridge

@@ -12,6 +12,7 @@ router.post('/login', authLimiter, loginValidator, validate, authController.logi
 router.post('/refresh-token', refreshTokenValidator, validate, authController.refreshToken);
 
 // Protected routes
+router.get('/me', authenticate, authController.getProfile);
 router.get('/profile', authenticate, authController.getProfile);
 router.put('/profile', authenticate, authController.updateProfile);
 router.put('/change-password', authenticate, authController.changePassword);

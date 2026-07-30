@@ -10,6 +10,8 @@ const depotRoutes = require('./depotRoutes');
 const gpsRoutes = require('./gpsRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
+const stopRoutes = require('./stopRoutes');
+const dashboardRoutes = require('./dashboardRoutes');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -28,9 +30,11 @@ router.use('/buses', busRoutes);
 router.use('/routes', routeRoutes);
 router.use('/drivers', driverRoutes);
 router.use('/depots', depotRoutes);
+router.use('/stops', stopRoutes);
 router.use('/gps', gpsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 // 404 handler for unknown API routes
 router.use('*', (req, res) => {
