@@ -71,7 +71,20 @@ async function setupRedisAdapter() {
       lazyConnect: true,
     });
 
+    pubClient.on('error', (err) => {
+      logger.warn('Socket.IO Redis pubClient error:', err.message)
+    })
+    pubClient.on('close', () => {
+      logger.warn('Socket.IO Redis pubClient closed')
+    })
+
     const subClient = pubClient.duplicate();
+    subClient.on('error', (err) => {
+      logger.warn('Socket.IO Redis subClient error:', err.message)
+    })
+    subClient.on('close', () => {
+      logger.warn('Socket.IO Redis subClient closed')
+    })
 
     await Promise.all([pubClient.connect(), subClient.connect()]);
 

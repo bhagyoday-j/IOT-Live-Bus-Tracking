@@ -18,13 +18,22 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+const corsOrigin = process.env.CORS_ORIGIN || 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174'
+const allowedOrigins = Array.isArray(corsOrigin) ? corsOrigin : corsOrigin.split(',').map((origin) => origin.trim())
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('CORS origin not allowed'))
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-ID', 'X-Device-Secret'],
   credentials: true,
   maxAge: 86400,
-}));
+}))
 
 app.use(compression());
 
