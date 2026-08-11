@@ -122,7 +122,7 @@ exports.getAllActiveLocations = asyncHandler(async (req, res) => {
     status: { $in: ['on-route', 'delayed'] },
     'currentLocation.lat': { $exists: true },
   })
-    .select('number status currentLocation routeId delay')
+    .select('number status currentLocation routeId delay health')
     .populate('routeId', 'name number')
     .lean();
 
@@ -133,6 +133,7 @@ exports.getAllActiveLocations = asyncHandler(async (req, res) => {
     routeNumber: bus.routeId?.number || 'N/A',
     status: bus.status,
     delay: bus.delay || 0,
+    healthStatus: bus.health?.status || 'unknown',
     lat: bus.currentLocation?.lat,
     lng: bus.currentLocation?.lng,
     speed: bus.currentLocation?.speed || 0,

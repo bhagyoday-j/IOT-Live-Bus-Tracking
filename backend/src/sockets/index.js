@@ -36,8 +36,7 @@ async function initializeSocketIO(server) {
   io = new Server(server, {
     cors: {
       origin: process.env.CORS_ORIGIN || '*',
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     },
     pingTimeout: 60000,
     pingInterval: 25000,

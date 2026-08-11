@@ -8,6 +8,9 @@ import Notifications from '../pages/passenger/Notifications'
 import Profile from '../pages/passenger/Profile'
 import ManagerDashboard from '../pages/manager/Dashboard'
 import FleetTracking from '../pages/manager/FleetTracking'
+import BusHealth from '../pages/manager/BusHealth'
+import DriverSafety from '../pages/manager/DriverSafety'
+import Maintenance from '../pages/manager/Maintenance'
 import Analytics from '../pages/manager/Analytics'
 import Trips from '../pages/manager/Trips'
 import AdminDashboard from '../pages/admin/Dashboard'
@@ -33,9 +36,12 @@ const AppRoutes = () => (
         <Route path="/profile" element={<Profile />} />
       </Route>
 
-      <Route element={<ProtectedRoute allowedRoles={['MANAGER']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'DEPOT_MANAGER']} />}>
         <Route path="/manager" element={<ManagerDashboard />} />
         <Route path="/manager/fleet" element={<FleetTracking />} />
+        <Route path="/manager/health" element={<BusHealth />} />
+        <Route path="/manager/safety" element={<DriverSafety />} />
+        <Route path="/manager/maintenance" element={<Maintenance />} />
         <Route path="/manager/analytics" element={<Analytics />} />
         <Route path="/manager/trips" element={<Trips />} />
       </Route>

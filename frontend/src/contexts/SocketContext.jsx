@@ -26,6 +26,13 @@ export const SocketProvider = ({ children }) => {
     socketInstance.on('busCancelled', (payload) => pushEvent('busCancelled', payload))
     socketInstance.on('busStatusChanged', (payload) => pushEvent('busStatusChanged', payload))
 
+    // SmartTransit AI events
+    socketInstance.on('busTelemetryUpdated', (payload) => pushEvent('busTelemetryUpdated', payload))
+    socketInstance.on('busHealthChanged', (payload) => pushEvent('busHealthChanged', payload))
+    socketInstance.on('driverEventDetected', (payload) => pushEvent('driverEventDetected', payload))
+    socketInstance.on('accidentDetected', (payload) => pushEvent('accidentDetected', payload))
+    socketInstance.on('maintenanceAlertCreated', (payload) => pushEvent('maintenanceAlertCreated', payload))
+
     return () => {
       socketInstance.disconnect()
     }

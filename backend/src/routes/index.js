@@ -12,6 +12,9 @@ const notificationRoutes = require('./notificationRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
 const stopRoutes = require('./stopRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
+const telemetryRoutes = require('./telemetryRoutes');
+const safetyRoutes = require('./safetyRoutes');
+const maintenanceRoutes = require('./maintenanceRoutes');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -35,6 +38,12 @@ router.use('/gps', gpsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/health', telemetryRoutes);
+router.use('/safety', safetyRoutes);
+router.use('/maintenance', maintenanceRoutes);
+
+// Live tracking alias used by the frontend (busService.getLiveTracking)
+router.get('/tracking/live', require('../middleware/auth').authenticate, require('../controllers/gpsController').getAllActiveLocations);
 
 // 404 handler for unknown API routes
 router.use('*', (req, res) => {

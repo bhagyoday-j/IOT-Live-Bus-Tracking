@@ -5,9 +5,10 @@ const logger = require('../utils/logger');
  * MQTT Configuration for EMQX Broker
  * 
  * Topics:
- *   bus/location/{deviceId} - GPS location updates from IoT devices
- *   bus/status/{deviceId}   - Status updates (online/offline/sos)
- *   bus/command/{deviceId}  - Commands to devices
+ *   bus/location/{deviceId}   - GPS location updates from IoT devices
+ *   bus/status/{deviceId}     - Status updates (online/offline/sos)
+ *   bus/telemetry/{deviceId}  - Sensor telemetry (temp/voltage/current/IMU)
+ *   bus/command/{deviceId}    - Commands to devices
  */
 const mqttConfig = {
   brokerUrl: config.mqtt.brokerUrl,
@@ -30,12 +31,14 @@ const mqttConfig = {
   topics: {
     location: `${config.mqtt.topicPrefix}/location/+`,
     status: `${config.mqtt.topicPrefix}/status/+`,
+    telemetry: `${config.mqtt.topicPrefix}/telemetry/+`,
     command: `${config.mqtt.topicPrefix}/command/`,
     alert: `${config.mqtt.topicPrefix}/alert/`,
   },
   subscriptions: [
     { topic: `${config.mqtt.topicPrefix}/location/+`, qos: 1 },
     { topic: `${config.mqtt.topicPrefix}/status/+`, qos: 1 },
+    { topic: `${config.mqtt.topicPrefix}/telemetry/+`, qos: 1 },
     { topic: `${config.mqtt.topicPrefix}/alert/+`, qos: 1 },
   ],
   qosLevels: {
@@ -74,6 +77,45 @@ const validateDevicePayload = (payload) => {
 };
 
 /**
+ * Validate a telemetry payload (sensor readings)
+ */
+const validateTelemetryPayload = (payload) => {
+  const errors = [];
+
+  if (!payload.deviceId || typeof payload.deviceId !== 'string') {
+    errors.push('deviceId is required and must be a string');
+  }
+  if (payload.engineTemperature !== undefined && typeof payload.engineTemperature !== 'number') {
+    errors.push('engineTemperature must be a number');
+  }
+  if (payload.batteryVoltage !== undefined && typeof payload.batteryVoltage !== 'number') {
+    errors.push('batteryVoltage must be a number');
+  }
+  if (payload.currentDraw !== undefined && typeof payload.currentDraw !== 'number') {
+    errors.push('currentDraw must be a number');
+  }
+  if (payload.vibration !== undefined && typeof payload.vibration !== 'number') {
+    errors.push('vibration must be a number');
+  }
+
+  const hasSensorData = payload.engineTemperature !== undefined
+    || payload.batteryVoltage !== undefined
+    || payload.currentDraw !== undefined
+    || payload.vibration !== undefined
+    || (payload.accelerometer && typeof payload.accelerometer === 'object')
+    || (payload.gyroscope && typeof payload.gyroscope === 'object');
+
+  if (!hasSensorData) {
+    errors.push('payload must contain at least one sensor reading');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+/**
  * Get the device ID from a topic string
  * e.g., 'bus/location/BUS_MH001' -> 'BUS_MH001'
  */
@@ -99,6 +141,7 @@ const getLocationTopic = (deviceId) => {
 module.exports = {
   mqttConfig,
   validateDevicePayload,
+  validateTelemetryPayload,
   extractDeviceIdFromTopic,
   getDeviceTopic,
   getLocationTopic,

@@ -13,8 +13,20 @@ class ETAService {
    */
   async calculateETA(bus, route, currentLocation) {
     try {
+      // Resolve real coordinates for every stop (route.stops subdocs do not
+      // embed them — they live on the referenced Stop documents)
+      const stops = await this.resolveStopLocations(route.stops);
+      if (!stops.length) {
+        return {
+          nextStop: 'End of route',
+          etaMinutes: 0,
+          stops: [],
+          status: 'completed',
+        };
+      }
+
       // Find current position relative to route
-      const { nextStopIndex, nextStop } = this.findNextStop(route, currentLocation);
+      const { nextStopIndex, nextStop } = this.findNextStop(stops, currentLocation);
 
       if (!nextStop) {
         return {
@@ -28,8 +40,7 @@ class ETAService {
       // Get distance to next stop
       const distanceToNext = this.calculateDistance(
         currentLocation.lat, currentLocation.lng,
-        nextStop.location?.coordinates?.[1] || nextStop.lat,
-        nextStop.location?.coordinates?.[0] || nextStop.lng
+        nextStop.lat, nextStop.lng
       );
 
       // Calculate ETA based on speed and traffic
@@ -42,16 +53,14 @@ class ETAService {
       const remainingStops = [];
       let cumulativeTime = 0;
 
-      for (let i = nextStopIndex; i < route.stops.length; i++) {
-        const stop = route.stops[i];
+      for (let i = nextStopIndex; i < stops.length; i++) {
+        const stop = stops[i];
         
         if (i > nextStopIndex) {
-          const prevStop = route.stops[i - 1];
+          const prevStop = stops[i - 1];
           const dist = this.calculateDistance(
-            prevStop.location?.coordinates?.[1] || prevStop.lat,
-            prevStop.location?.coordinates?.[0] || prevStop.lng,
-            stop.location?.coordinates?.[1] || stop.lat,
-            stop.location?.coordinates?.[0] || stop.lng
+            prevStop.lat, prevStop.lng,
+            stop.lat, stop.lng
           );
           cumulativeTime += (dist / 25) * 60; // Average 25 km/h between stops
         }
@@ -60,7 +69,7 @@ class ETAService {
           stopId: stop.stopId || stop.id,
           stopName: stop.name,
           order: stop.order,
-          etaMinutes: Math.round((i === nextStopIndex ? etaMinutes : cumulativeTime)),
+          etaMinutes: Math.round(i === nextStopIndex ? etaMinutes : cumulativeTime),
           distance: i === nextStopIndex ? Math.round(distanceToNext) : 0,
         });
       }
@@ -87,20 +96,67 @@ class ETAService {
   }
 
   /**
-   * Find the next stop a bus needs to reach based on current position
+   * Enrich route stops with real lat/lng coordinates.
+   * Handles: populated stops (stop.stopId is a doc), raw stops with a
+   * GeoJSON location, and plain ObjectId refs (fetched from the Stop model).
    */
-  findNextStop(route, currentLocation) {
-    if (!route?.stops?.length) return { nextStopIndex: -1, nextStop: null };
+  async resolveStopLocations(routeStops = []) {
+    const stops = [];
+    const missing = [];
+
+    for (const stop of routeStops) {
+      const populated = stop.stopId && typeof stop.stopId === 'object' ? stop.stopId : null;
+      const coords = stop.location?.coordinates || populated?.location?.coordinates;
+
+      if (coords?.length === 2) {
+        stops.push({ ...stop, lat: coords[1], lng: coords[0] });
+      } else if (stop.stopId) {
+        missing.push(stop);
+      } else if (stop.lat != null && stop.lng != null) {
+        stops.push(stop);
+      }
+    }
+
+    if (missing.length > 0) {
+      try {
+        const Stop = require('../models/Stop');
+        const ids = missing.map((s) => s.stopId).filter(Boolean);
+        const docs = await Stop.find({ _id: { $in: ids } }).lean();
+        const byId = new Map(docs.map((d) => [d._id.toString(), d]));
+
+        for (const stop of missing) {
+          const doc = byId.get(stop.stopId.toString());
+          const coords = doc?.location?.coordinates;
+          stops.push({
+            ...stop,
+            lat: coords ? coords[1] : null,
+            lng: coords ? coords[0] : null,
+          });
+        }
+      } catch (error) {
+        logger.error('Error resolving stop locations:', error.message);
+        stops.push(...missing);
+      }
+    }
+
+    return stops;
+  }
+
+  /**
+   * Find the next stop a bus needs to reach based on current position
+   * @param {Array} stops - route stops enriched with lat/lng
+   */
+  findNextStop(stops, currentLocation) {
+    if (!stops?.length) return { nextStopIndex: -1, nextStop: null };
 
     let minDistance = Infinity;
     let nextStopIndex = 0;
 
-    for (let i = 0; i < route.stops.length; i++) {
-      const stop = route.stops[i];
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
       const dist = this.calculateDistance(
         currentLocation.lat, currentLocation.lng,
-        stop.location?.coordinates?.[1] || stop.lat,
-        stop.location?.coordinates?.[0] || stop.lng
+        stop.lat, stop.lng
       );
 
       if (dist < minDistance) {
@@ -110,11 +166,11 @@ class ETAService {
     }
 
     // The next stop is the one after the closest stop, or the closest if at the start
-    const actualNextIndex = nextStopIndex < route.stops.length - 1 ? nextStopIndex + 1 : nextStopIndex;
+    const actualNextIndex = nextStopIndex < stops.length - 1 ? nextStopIndex + 1 : nextStopIndex;
     
     return {
       nextStopIndex: actualNextIndex,
-      nextStop: route.stops[actualNextIndex],
+      nextStop: stops[actualNextIndex],
     };
   }
 

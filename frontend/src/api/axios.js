@@ -5,14 +5,22 @@ const api = axios.create({
   withCredentials: true,
 })
 
-let accessToken = null
+const TOKEN_KEY = 'st_access_token'
+
+let accessToken = localStorage.getItem(TOKEN_KEY) || null
 
 export const setAccessToken = (token) => {
   accessToken = token
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 export const clearAccessToken = () => {
   accessToken = null
+  localStorage.removeItem(TOKEN_KEY)
 }
 
 api.interceptors.request.use((config) => {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Lock, Mail } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
-import { ROLE_HOME } from '../../utils/constants'
+import { ROLE_HOME, DEMO_ACCOUNTS } from '../../utils/constants'
 
 const LoginForm = () => {
   const { login } = useAuth()
@@ -10,6 +10,8 @@ const LoginForm = () => {
   const [form, setForm] = useState({ email: 'test@test.com', password: '123456' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const isDemoActive = (account) => form.email === account.email && form.password === account.password
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -59,6 +61,24 @@ const LoginForm = () => {
       <button type="submit" disabled={loading} className="w-full rounded-2xl bg-sky-700 px-4 py-3 font-semibold text-white transition hover:bg-sky-800 disabled:opacity-70">
         {loading ? 'Signing in...' : 'Sign in'}
       </button>
+
+      <div className="pt-2">
+        <p className="text-center text-xs font-medium uppercase tracking-widest text-slate-400">Demo accounts</p>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              onClick={() => setForm({ email: account.email, password: account.password })}
+              className={`rounded-xl border px-2 py-2 text-xs font-semibold transition hover:-translate-y-0.5 hover:shadow-sm ${isDemoActive(account)
+                ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-950/50 dark:text-sky-300'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-sky-700'}`}
+            >
+              {account.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </form>
   )
 }

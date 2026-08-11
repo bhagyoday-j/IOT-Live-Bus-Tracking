@@ -2,9 +2,10 @@ const rateLimit = require('express-rate-limit');
 const config = require('../config/index');
 
 // General API rate limiter
+// (lenient in development so dashboard polling and demo testing aren't blocked)
 const apiLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.max,
+  max: config.env === 'production' ? config.rateLimit.max : 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -16,9 +17,10 @@ const apiLimiter = rateLimit({
 });
 
 // Strict rate limiter for auth endpoints
+// (lenient in development so seeded demo accounts and testing aren't blocked)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: config.env === 'production' ? 10 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

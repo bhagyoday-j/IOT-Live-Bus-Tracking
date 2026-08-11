@@ -8,6 +8,7 @@ const firebaseService = require('./services/firebaseService');
 const { initializeSocketIO } = require('./sockets/index');
 const mqttConsumer = require('./mqtt/consumer');
 const { startJobs } = require('./jobs/delayDetection');
+const { startTelemetryJobs } = require('./jobs/telemetryJobs');
 
 const server = http.createServer(app);
 
@@ -64,6 +65,14 @@ async function startServer() {
       logger.info('✓ Scheduled jobs started');
     } catch (jobsError) {
       logger.warn('✗ Scheduled jobs failed:', jobsError.message);
+    }
+
+    // Step 4b: Start telemetry simulation + predictive maintenance jobs
+    try {
+      startTelemetryJobs();
+      logger.info('✓ Telemetry simulation jobs started');
+    } catch (telemetryError) {
+      logger.warn('✗ Telemetry jobs failed:', telemetryError.message);
     }
 
     // Step 5: Start listening

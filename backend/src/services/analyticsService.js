@@ -244,6 +244,202 @@ class AnalyticsService {
     }
   }
 
+  /**
+   * Combined fleet intelligence for the SmartTransit analytics dashboard:
+   * vehicle health status, driver safety reports, maintenance alerts and
+   * accident history.
+   */
+  async getFleetIntelligence() {
+    const [health, safety, maintenance, accidents] = await Promise.all([
+      this.getFleetHealthSummary(),
+      this.getDriverSafetyReport(),
+      this.getMaintenanceSummary(),
+      this.getAccidentHistory(7),
+    ]);
+
+    return { health, safety, maintenance, accidents };
+  }
+
+  /**
+   * Vehicle health status across the fleet.
+   */
+  async getFleetHealthSummary() {
+    try {
+      const [statusStats, tempStats, voltStats] = await Promise.all([
+        Bus.aggregate([
+          { $match: { isActive: true } },
+          { $group: { _id: '$health.status', count: { $sum: 1 } } },
+        ]),
+        Bus.aggregate([
+          { $match: { isActive: true, 'health.engineTemperature': { $ne: null } } },
+          {
+            $group: {
+              _id: null,
+              avgTemperature: { $avg: '$health.engineTemperature' },
+              maxTemperature: { $max: '$health.engineTemperature' },
+            },
+          },
+        ]),
+        Bus.aggregate([
+          { $match: { isActive: true, 'health.batteryVoltage': { $ne: null } } },
+          { $group: { _id: null, avgVoltage: { $avg: '$health.batteryVoltage' } } },
+        ]),
+      ]);
+
+      const summary = { healthy: 0, warning: 0, critical: 0, unknown: 0 };
+      statusStats.forEach((s) => { summary[s._id] = s.count; });
+
+      return {
+        ...summary,
+        total: statusStats.reduce((sum, s) => sum + s.count, 0),
+        avgTemperature: tempStats[0] ? Math.round(tempStats[0].avgTemperature * 10) / 10 : null,
+        maxTemperature: tempStats[0]?.maxTemperature ?? null,
+        avgVoltage: voltStats[0] ? Math.round(voltStats[0].avgVoltage * 10) / 10 : null,
+      };
+    } catch (error) {
+      logger.error('Error getting fleet health summary:', error.message);
+      return { healthy: 0, warning: 0, critical: 0, unknown: 0, total: 0 };
+    }
+  }
+
+  /**
+   * Driver safety reports.
+   */
+  async getDriverSafetyReport() {
+    try {
+      const Driver = require('../models/Driver');
+      const DriverEvent = require('../models/DriverEvent');
+
+      const drivers = await Driver.find({ isActive: true })
+        .select('name status safety')
+        .lean();
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const [eventsToday, eventStats] = await Promise.all([
+        DriverEvent.countDocuments({ timestamp: { $gte: todayStart } }),
+        DriverEvent.aggregate([
+          { $group: { _id: '$type', count: { $sum: 1 } } },
+        ]),
+      ]);
+
+      const byType = {};
+      eventStats.forEach((e) => { byType[e._id] = e.count; });
+
+      const scored = drivers
+        .filter((d) => (d.safety?.totalEvents || 0) > 0)
+        .map((d) => ({
+          driverId: d._id,
+          name: d.name,
+          score: d.safety?.score ?? 100,
+          totalEvents: d.safety?.totalEvents || 0,
+          trend: d.safety?.trend || 'stable',
+          status: d.status,
+        }))
+        .sort((a, b) => a.score - b.score);
+
+      const fleetAverage = scored.length > 0
+        ? Math.round((scored.reduce((s, d) => s + d.score, 0) / scored.length) * 10) / 10
+        : 100;
+
+      return {
+        fleetAverage,
+        drivers: scored,
+        eventsToday,
+        byType,
+      };
+    } catch (error) {
+      logger.error('Error getting driver safety report:', error.message);
+      return { fleetAverage: 100, drivers: [], eventsToday: 0, byType: {} };
+    }
+  }
+
+  /**
+   * Predictive maintenance alert summary.
+   */
+  async getMaintenanceSummary() {
+    try {
+      const MaintenanceAlert = require('../models/MaintenanceAlert');
+      const [statusStats, typeStats, highRisk] = await Promise.all([
+        MaintenanceAlert.aggregate([
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ]),
+        MaintenanceAlert.aggregate([
+          { $match: { status: { $in: ['open', 'scheduled'] } } },
+          { $group: { _id: '$alertType', count: { $sum: 1 } } },
+        ]),
+        MaintenanceAlert.find({
+          status: { $in: ['open', 'scheduled'] },
+          predictedDaysUntilFailure: { $lte: 5 },
+        })
+          .sort({ predictedDaysUntilFailure: 1 })
+          .limit(10)
+          .select('busNumber alertType severity message predictedDaysUntilFailure detectedAt')
+          .lean(),
+      ]);
+
+      const byStatus = {};
+      statusStats.forEach((s) => { byStatus[s._id] = s.count; });
+
+      const byType = {};
+      typeStats.forEach((t) => { byType[t._id] = t.count; });
+
+      return {
+        open: byStatus.open || 0,
+        scheduled: byStatus.scheduled || 0,
+        resolved: byStatus.resolved || 0,
+        dismissed: byStatus.dismissed || 0,
+        byType,
+        highRisk,
+      };
+    } catch (error) {
+      logger.error('Error getting maintenance summary:', error.message);
+      return { open: 0, scheduled: 0, resolved: 0, dismissed: 0, byType: {}, highRisk: [] };
+    }
+  }
+
+  /**
+   * Accident history (automatic + manual SOS alerts).
+   */
+  async getAccidentHistory(days = 7) {
+    try {
+      const SOSAlert = require('../models/SOSAlert');
+      const since = new Date(Date.now() - days * 86400000);
+
+      const [total, automatic, manual, recent] = await Promise.all([
+        SOSAlert.countDocuments({ timestamp: { $gte: since } }),
+        SOSAlert.countDocuments({ timestamp: { $gte: since }, trigger: 'automatic' }),
+        SOSAlert.countDocuments({ timestamp: { $gte: since }, trigger: 'manual' }),
+        SOSAlert.find({ timestamp: { $gte: since } })
+          .sort({ timestamp: -1 })
+          .limit(10)
+          .populate('busId', 'number')
+          .lean(),
+      ]);
+
+      return {
+        total,
+        automatic,
+        manual,
+        recent: recent.map((a) => ({
+          alertId: a._id,
+          busId: a.busId?._id || a.busId,
+          busNumber: a.busId?.number || null,
+          trigger: a.trigger || 'manual',
+          severity: a.severity,
+          status: a.status,
+          impact: a.impact || null,
+          location: a.location?.coordinates || null,
+          timestamp: a.timestamp,
+        })),
+      };
+    } catch (error) {
+      logger.error('Error getting accident history:', error.message);
+      return { total: 0, automatic: 0, manual: 0, recent: [] };
+    }
+  }
+
   calculateOnTimePerformance(activeBuses, delayedBuses) {
     const total = activeBuses + delayedBuses;
     if (total === 0) return 100;

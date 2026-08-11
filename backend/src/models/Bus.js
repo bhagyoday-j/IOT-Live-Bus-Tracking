@@ -65,6 +65,19 @@ const busSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  health: {
+    status: {
+      type: String,
+      enum: ['healthy', 'warning', 'critical', 'unknown'],
+      default: 'unknown',
+    },
+    engineTemperature: { type: Number, default: null },
+    batteryVoltage: { type: Number, default: null },
+    currentDraw: { type: Number, default: null },
+    vibration: { type: Number, default: 0 },
+    lastEvent: { type: String, default: null },
+    updatedAt: { type: Date, default: null },
+  },
   isActive: { type: Boolean, default: true },
   sosActive: { type: Boolean, default: false },
   sosActivatedAt: { type: Date },
@@ -84,6 +97,7 @@ busSchema.index({ deviceId: 1 });
 busSchema.index({ status: 1 });
 busSchema.index({ routeId: 1 });
 busSchema.index({ depotId: 1 });
+busSchema.index({ 'health.status': 1 });
 busSchema.index({ 'currentLocation.lat': 1, 'currentLocation.lng': 1 });
 
 module.exports = mongoose.model('Bus', busSchema);

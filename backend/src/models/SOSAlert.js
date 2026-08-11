@@ -56,6 +56,15 @@ const sosAlertSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'critical'],
     default: 'high',
   },
+  trigger: {
+    type: String,
+    enum: ['manual', 'automatic'],
+    default: 'manual',
+  },
+  impact: {
+    magnitude: { type: Number, default: 0 },
+    type: { type: String, default: null },
+  },
   notificationsSent: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     channel: { type: String },

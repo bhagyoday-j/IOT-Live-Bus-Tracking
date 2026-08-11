@@ -1,12 +1,13 @@
 const mqtt = require('mqtt');
 const config = require('../config/index');
-const { mqttConfig, validateDevicePayload, extractDeviceIdFromTopic } = require('../config/mqtt');
+const { mqttConfig, validateDevicePayload, validateTelemetryPayload, extractDeviceIdFromTopic } = require('../config/mqtt');
 const Bus = require('../models/Bus');
 const BusLocation = require('../models/BusLocation');
 const SOSAlert = require('../models/SOSAlert');
 const Trip = require('../models/Trip');
 const delayDetectionService = require('../services/delayDetectionService');
 const etaService = require('../services/etaService');
+const telemetryService = require('../services/telemetryService');
 const redisService = require('../services/redisService');
 const logger = require('../utils/logger');
 
@@ -131,6 +132,8 @@ class MQTTConsumer {
 
       if (topic.includes('/location/')) {
         await this.processLocationUpdate(deviceId, message);
+      } else if (topic.includes('/telemetry/')) {
+        await this.processTelemetryUpdate(deviceId, message);
       } else if (topic.includes('/status/')) {
         await this.processStatusUpdate(deviceId, message);
       } else if (topic.includes('/alert/')) {
@@ -254,6 +257,22 @@ class MQTTConsumer {
       io.to('role:depot_manager').emit('busLocationUpdated', locationEvent);
       io.to('role:admin').emit('busLocationUpdated', locationEvent);
       io.emit('busLocationUpdated', locationEvent);
+    }
+  }
+
+  /**
+   * Process sensor telemetry update from a device (health/safety data)
+   */
+  async processTelemetryUpdate(deviceId, data) {
+    const validation = validateTelemetryPayload(data);
+    if (!validation.isValid) {
+      logger.warn(`Invalid telemetry payload from ${deviceId}:`, validation.errors);
+      return;
+    }
+
+    const result = await telemetryService.processTelemetry(deviceId, data);
+    if (!result.success) {
+      logger.warn(`Telemetry processing failed for ${deviceId}:`, result.errors);
     }
   }
 

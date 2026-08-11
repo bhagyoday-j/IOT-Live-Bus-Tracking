@@ -11,8 +11,16 @@ export const COLORS = {
 export const ROLE_HOME = {
   PASSENGER: '/',
   MANAGER: '/manager',
+  DEPOT_MANAGER: '/manager',
   ADMIN: '/admin',
 }
+
+// Seeded test credentials (npm run seed in backend/)
+export const DEMO_ACCOUNTS = [
+  { label: 'Passenger', email: 'test@test.com', password: '123456' },
+  { label: 'Depot Manager', email: 'manager@test.com', password: 'Manager123' },
+  { label: 'Admin', email: 'admin@test.com', password: 'Admin123' },
+]
 
 export const PASSENGER_NAV = [
   { label: 'Home', path: '/' },
@@ -25,6 +33,9 @@ export const PASSENGER_NAV = [
 export const MANAGER_NAV = [
   { label: 'Overview', path: '/manager' },
   { label: 'Fleet Tracking', path: '/manager/fleet' },
+  { label: 'Bus Health', path: '/manager/health' },
+  { label: 'Driver Safety', path: '/manager/safety' },
+  { label: 'Maintenance', path: '/manager/maintenance' },
   { label: 'Analytics', path: '/manager/analytics' },
   { label: 'Trips', path: '/manager/trips' },
 ]

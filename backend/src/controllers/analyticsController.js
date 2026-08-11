@@ -53,3 +53,29 @@ exports.getHeatmapData = asyncHandler(async (req, res) => {
   const locations = await analyticsService.getBusLocationsForHeatmap();
   ApiResponse.success(res, { locations, count: locations.length });
 });
+
+exports.getFleetIntelligence = asyncHandler(async (req, res) => {
+  const intelligence = await analyticsService.getFleetIntelligence();
+  ApiResponse.success(res, { intelligence });
+});
+
+exports.getHealthSummary = asyncHandler(async (req, res) => {
+  const health = await analyticsService.getFleetHealthSummary();
+  ApiResponse.success(res, { health });
+});
+
+exports.getSafetyReport = asyncHandler(async (req, res) => {
+  const safety = await analyticsService.getDriverSafetyReport();
+  ApiResponse.success(res, { safety });
+});
+
+exports.getMaintenanceSummary = asyncHandler(async (req, res) => {
+  const maintenance = await analyticsService.getMaintenanceSummary();
+  ApiResponse.success(res, { maintenance });
+});
+
+exports.getAccidentHistory = asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days) || 7;
+  const accidents = await analyticsService.getAccidentHistory(days);
+  ApiResponse.success(res, { accidents });
+});

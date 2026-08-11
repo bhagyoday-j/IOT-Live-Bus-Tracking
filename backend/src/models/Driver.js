@@ -66,6 +66,25 @@ const driverSchema = new mongoose.Schema({
     licenseBack: { type: String },
     photo: { type: String },
   },
+  safety: {
+    score: {
+      type: Number,
+      default: 100,
+      min: 0,
+      max: 100,
+    },
+    totalEvents: { type: Number, default: 0 },
+    harshBraking: { type: Number, default: 0 },
+    suddenAcceleration: { type: Number, default: 0 },
+    sharpTurns: { type: Number, default: 0 },
+    excessiveVibration: { type: Number, default: 0 },
+    trend: {
+      type: String,
+      enum: ['improving', 'stable', 'declining'],
+      default: 'stable',
+    },
+    lastEventAt: { type: Date, default: null },
+  },
   isActive: { type: Boolean, default: true },
   lastLocation: {
     lat: { type: Number },

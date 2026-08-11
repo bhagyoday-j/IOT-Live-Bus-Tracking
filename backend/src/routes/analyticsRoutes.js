@@ -12,4 +12,11 @@ router.get('/trip-distribution', authenticate, analyticsController.getTripDistri
 router.get('/bus-utilization', authenticate, authorize('admin', 'depot_manager'), analyticsController.getBusUtilization);
 router.get('/heatmap', authenticate, analyticsController.getHeatmapData);
 
+// SmartTransit AI intelligence endpoints
+router.get('/fleet-intelligence', authenticate, analyticsController.getFleetIntelligence);
+router.get('/health', authenticate, analyticsController.getHealthSummary);
+router.get('/safety', authenticate, analyticsController.getSafetyReport);
+router.get('/maintenance', authenticate, analyticsController.getMaintenanceSummary);
+router.get('/accidents', authenticate, analyticsController.getAccidentHistory);
+
 module.exports = router;
